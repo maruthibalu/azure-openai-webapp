@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Azure OpenAI Chat</title>
+</head>
+<body>
+    <h1>Chat with AI</h1>
+
+    <div style="border:1px solid #ccc; padding:10px; width:400px; height:300px; overflow-y:auto;">
+        {% for msg in history %}
+            {% if msg.role != 'system' %}
+                <p><b>{{ msg.role.capitalize() }}:</b> {{ msg.content }}</p>
+            {% endif %}
+        {% endfor %}
+    </div>
+
+    <form method="post" style="margin-top:10px;">
+        <input type="text" name="user_input" size="40" placeholder="Type your message..." required/>
+        <input type="submit" value="Send"/>
+    </form>
+
+    <form method="post" action="/reset" style="margin-top:10px;">
+        <button type="submit">Clear Chat</button>
+    </form>
+</body>
+</html>
