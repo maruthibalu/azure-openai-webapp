@@ -1,9 +1,22 @@
 from flask import Flask, render_template, request, session, redirect, url_for
 from openai import AzureOpenAI
 import os
+import re
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# ======= PHOTO CONFIGURATION =======
+# Add your photo URLs here. The bot will display these when users ask for photos.
+# Format: "label": "url"
+PHOTOS = {
+    "profile": "https://example.com/bala-profile.jpg",
+    "family": "https://example.com/bala-family.jpg",
+    "horse riding": "https://example.com/bala-horse-riding.jpg",
+    "at work": "https://example.com/bala-at-work.jpg",
+    "nature": "https://example.com/bala-nature.jpg",
+}
+# ====================================
 
 # Azure AI Foundry endpoint and key
 AZURE_OPENAI_KEY = os.getenv("AZURE_OPENAI_API_KEY")
@@ -16,8 +29,29 @@ chat_client = AzureOpenAI(
     azure_endpoint=AZURE_OPENAI_ENDPOINT,
 )
 
+
+def replace_photo_markers(text):
+    """Replace [PHOTO:label] markers with <img> HTML tags."""
+    def replacer(match):
+        label = match.group(1).strip().lower()
+        url = PHOTOS.get(label)
+        if url:
+            return (
+                f'<div class="photo-container">'
+                f'<img src="{url}" alt="Bala - {label}" class="chat-photo">'
+                f'<p class="photo-caption">{label.title()}</p>'
+                f'</div>'
+            )
+        return match.group(0)  # Keep original if label not found
+
+    return re.sub(r'\[PHOTO:(.*?)\]', replacer, text)
+
+
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", os.urandom(24))
+
+# Register Jinja filter so chat history also renders photo markers
+app.jinja_env.filters['replace_photos'] = replace_photo_markers
 
 @app.route("/", methods=["GET", "POST"])
 def chat():
@@ -43,6 +77,12 @@ def chat():
                     "Horse riding is one of Bala's favorite hobbies. As of now I can do horse riding at beginner level upto trauting. I am planning to take horse riding classes to learn up to gallopping.\n"
                     "I am also passionate about nature and improving nature with good plantation like, fruits, coconut, flowers, oxygen plants etc. \n"
                     "=================\n\n"
+                    "\n=== Available Photos ===\n"
+                    "You have the following photos you can share. When a user asks to see a photo, "
+                    "include the marker [PHOTO:label] in your response (use the exact label from below). "
+                    "You can include multiple photos. Always add a friendly description along with the photo.\n"
+                    + "\n".join(f"- {label}" for label in PHOTOS.keys()) + "\n"
+                    "========================\n\n"
                     "Always refer to Bala in third person unless the user asks 'tell me about yourself', in which case "
                     "respond as if you are introducing Bala. Keep answers concise and warm."
                 )
@@ -67,7 +107,8 @@ def chat():
             session["messages"].append({"role": "assistant", "content": assistant_reply})
             session.modified = True
 
-            response_text = assistant_reply
+            # Replace [PHOTO:label] markers with actual image HTML
+            response_text = replace_photo_markers(assistant_reply)
 
     return render_template("index.html", response=response_text, history=session["messages"])
 
